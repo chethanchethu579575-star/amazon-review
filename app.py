@@ -59,13 +59,26 @@ if uploaded_file is not None:
         # Automatically read the first 50,000 rows to ensure blazing fast cloud performance
         raw_df = pd.read_csv(uploaded_file, nrows=50000)
         
-        # Standardize columns dynamically
-        if 'ProductId' in raw_df.columns:
-            df = raw_df[['ProductId', 'Text', 'Score']].copy()
+       # Smart adaptive column finder
+        cols = raw_df.columns.tolist()
+
+        # Find text column (look for 'text', 'review', 'body', etc.)
+        text_col = next((c for c in cols if any(x in c.lower() for x in ['text', 'review', 'body', 'comment'])), None)
+
+        # Find rating column (look for 'score', 'rating', 'star')
+        rating_col = next((c for c in cols if any(x in c.lower() for x in ['score', 'rating', 'star', 'points'])), None)
+
+        # Find ID column or default to the first column
+        id_col = next((c for c in cols if any(x in c.lower() for x in ['id', 'asin', 'key'])), cols[0])
+
+        # If we found our key metrics, safely isolate and rename them
+        if text_col and rating_col:
+            df = raw_df[[id_col, text_col, rating_col]].copy()
+            df.columns = ['product_id', 'review_text', 'rating']
         else:
-            df = raw_df.copy()
-            
-        df.columns = ['product_id', 'review_text', 'rating']
+            # Ultimate fallback: just grab the first 3 columns available
+            df = raw_df.iloc[:, :3].copy()
+            df.columns = ['product_id', 'review_text', 'rating']
         
         # Filter out neutral reviews (3-star)
         df = df[df['rating'] != 3]
